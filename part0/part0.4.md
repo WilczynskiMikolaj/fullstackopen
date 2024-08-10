@@ -5,7 +5,7 @@ sequenceDiagram
 
     browser->>server: POST https://studies.cs.helsinki.fi/exampleapp/new_note
     activate server
-    server-->>browser: Code 302
+    server-->>browser: HTTP status code 302.
     deactivate server
 
     Note left of server: The server responds with url redirect defined in header's Location.
