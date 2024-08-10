@@ -8,7 +8,7 @@ sequenceDiagram
     server-->>browser: Code 302
     deactivate server
 
-    Note right of browser: The browser responds with url redirect defined in header's Location.
+    Note left of server: The server responds with url redirect defined in header's Location.
 
     browser->>server: GET https://studies.cs.helsinki.fi/exampleapp/notes
     activate server
