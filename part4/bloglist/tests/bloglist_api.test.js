@@ -2,6 +2,7 @@ const { test, after, beforeEach, describe } = require('node:test')
 const assert = require('node:assert')
 const mongoose = require('mongoose')
 const helper = require('./test_helper')
+const bcrypt = require('bcrypt')
 const supertest = require('supertest')
 const _ = require('lodash')
 const app = require('../app')
@@ -9,13 +10,21 @@ const api = supertest(app)
 
 
 const Blog = require('../models/blog')
+const User = require('../models/user')
 
 describe('when there is initially some blogs saved', () => {
   beforeEach(async () => {
-    await Blog.deleteMany({})
+    await User.deleteMany({})
+    for (let user of helper.initialUsers) {
+      const passwordHash = await bcrypt.hash(user.password, 10)
+      let userObject = new User({ username: user.username, name: user.name, passwordHash: passwordHash })
+      await userObject.save()
+    }
 
+    const mainUser = await helper.usersInDb()
+    await Blog.deleteMany({})
     for (let blog of helper.initialBlogs) {
-      let blogObject = new Blog(blog)
+      let blogObject = new Blog({ ...blog, user: mainUser[0].id })
       await blogObject.save()
     }
   })
@@ -47,11 +56,19 @@ describe('when there is initially some blogs saved', () => {
         title: 'How to betray someone.',
         author: 'Marcus Iunius Brutus',
         url: 'something.com',
-        likes: 149
+        likes: 200
       }
+
+
+      const login = await api
+        .post('/api/login')
+        .send({ username: helper.initialUsers[0].username, password: helper.initialUsers[0].password })
+        .expect(200)
+        .expect('Content-Type', /application\/json/)
 
       await api
         .post('/api/blogs')
+        .set('Authorization', `Bearer ${login.body.token}`)
         .send(newBlog)
         .expect(201)
         .expect('Content-Type', /application\/json/)
@@ -72,8 +89,15 @@ describe('when there is initially some blogs saved', () => {
         url: 'something.com',
       }
 
+      const login = await api
+        .post('/api/login')
+        .send({ username: helper.initialUsers[0].username, password: helper.initialUsers[0].password })
+        .expect(200)
+        .expect('Content-Type', /application\/json/)
+
       await api
         .post('/api/blogs')
+        .set('Authorization', `Bearer ${login.body.token}`)
         .send(newBlogWithoutlikes)
         .expect(201)
         .expect('Content-Type', /application\/json/)
@@ -89,8 +113,15 @@ describe('when there is initially some blogs saved', () => {
         url: 'something.com',
       }
 
+      const login = await api
+        .post('/api/login')
+        .send({ username: helper.initialUsers[0].username, password: helper.initialUsers[0].password })
+        .expect(200)
+        .expect('Content-Type', /application\/json/)
+
       await api
         .post('/api/blogs')
+        .set('Authorization', `Bearer ${login.body.token}`)
         .send(newBlogWithoutTitle)
         .expect(400)
 
@@ -105,8 +136,15 @@ describe('when there is initially some blogs saved', () => {
         title: 'Republic Republic only REPUBLIC!'
       }
 
+      const login = await api
+        .post('/api/login')
+        .send({ username: helper.initialUsers[0].username, password: helper.initialUsers[0].password })
+        .expect(200)
+        .expect('Content-Type', /application\/json/)
+
       await api
         .post('/api/blogs')
+        .set('Authorization', `Bearer ${login.body.token}`)
         .send(newBlogWithoutTitle)
         .expect(400)
 
@@ -120,14 +158,39 @@ describe('when there is initially some blogs saved', () => {
         author: 'Marcus Porcius Cato Uticensis',
       }
 
+      const login = await api
+        .post('/api/login')
+        .send({ username: helper.initialUsers[0].username, password: helper.initialUsers[0].password })
+        .expect(200)
+        .expect('Content-Type', /application\/json/)
+
       await api
         .post('/api/blogs')
+        .set('Authorization', `Bearer ${login.body.token}`)
         .send(newBlogWithoutTitle)
         .expect(400)
 
       const blogssAtTheEnd = await helper.blogsInDb()
 
       assert.strictEqual(helper.initialBlogs.length, blogssAtTheEnd.length)
+    })
+
+    test('Adding a blog fails with Unauthorized if token is not provided', async () => {
+      const newBlog = {
+        title: 'Second Triumvirate.',
+        author: 'Marcus Aemilius Lepidus',
+        url: 'something.com',
+        likes: 200
+      }
+
+      await api
+        .post('/api/blogs')
+        .send(newBlog)
+        .expect(401)
+
+      const blogssAtTheEnd = await helper.blogsInDb()
+      assert.strictEqual(blogssAtTheEnd.length, helper.initialBlogs.length)
+      assert(!blogssAtTheEnd.includes(newBlog.title))
     })
   })
 
@@ -136,8 +199,15 @@ describe('when there is initially some blogs saved', () => {
       const blogsAtStart = await helper.blogsInDb()
       const blogToDelete = blogsAtStart[0]
 
+      const login = await api
+        .post('/api/login')
+        .send({ username: helper.initialUsers[0].username, password: helper.initialUsers[0].password })
+        .expect(200)
+        .expect('Content-Type', /application\/json/)
+
       await api
         .delete(`/api/blogs/${blogToDelete.id}`)
+        .set('Authorization', `Bearer ${login.body.token}`)
         .expect(204)
 
       const blogsAtEnd = await helper.blogsInDb()
